@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/chessboard-1.0.0.min.css">
+    <link rel="Website icon" type="png" href="https://cdn-icons-png.flaticon.com/512/7432/7432034.png">
+    <title>Игра в шахматы | Inv1se</title>
+</head>
+
+<body oncontextmenu="return false">
+    <style>
+        @media only screen and (max-width: 600px) {
+            .board {
+                width: 400px;
+            }
+        }
+    </style>
+    <div class="container">
+        <h1>Шахматы | Inv1se</h1>
+        <div class="board" id="board"></div>
+        <div class="buttons">
+            <button class="play-again">Играть снова</button>
+            <button class="set-pos">Установить позицию</button>
+            <button class="flip-board">Перевернуть доску</button>
+        </div>
+        <div id="move-history" class="move-history"></div>
+    </div>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="js/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
