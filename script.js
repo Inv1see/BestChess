@@ -145,4 +145,23 @@ document.addEventListener('DOMContentLoaded', () => {
         board.resize();
     });
 
+    let isTouchingPiece = false;
+
+    $('#board').on('touchstart', '.piece-417db', function (e) {
+        // Если коснулись фигуры — разрешаем перетаскивание
+        isTouchingPiece = true;
+    });
+
+    $('#board').on('touchmove', function (e) {
+        // Если мы тащим фигуру, блокируем скролл страницы
+        if (isTouchingPiece) {
+            e.preventDefault();
+        }
+    });
+
+    $('#board').on('touchend touchcancel', function (e) {
+        // Отпустили палец — всё снова можно
+        isTouchingPiece = false;
+    });
+
 });
