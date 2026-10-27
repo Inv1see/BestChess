@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     board.position(game.fen());
                     recordMove(move.san, moveCount);
                     moveCount++;
+                    checkGameOver();
                 }
             }
         };
@@ -45,14 +46,30 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("Ошибка: для работы бота нужно запускать игру через локальный сервер (например, Live Server), а не двойным кликом!");
     }
 
+    const checkGameOver = () => {
+        if (!game.game_over()) return; // Если игра идет, ничего не делаем
+
+        // Небольшая задержка, чтобы доска успела перерисоваться перед alert
+        setTimeout(() => {
+            if (game.in_checkmate()) {
+                if (game.turn() === 'w') {
+                    alert("Шах и мат! Победили черные (бот).");
+                } else {
+                    alert("Шах и мат! Победили белые (вы).");
+                }
+            } else if (game.in_stalemate()) {
+                alert("Пат! Ничья.");
+            } else if (game.in_draw()) {
+                alert("Ничья! (Правило 50 ходов, повторение или недостаточно фигур)");
+            }
+        }, 100);
+    };
+
     // Функция, которая заставляет бота задуматься
     const makeSmartMove = () => {
-        if (game.game_over()) {
-            alert("Шах и мат!");
-            return;
-        }
+        if (game.game_over()) return;
+
         if (stockfish) {
-            // Передаем позицию и говорим думать 1 секунду
             stockfish.postMessage(`position fen ${game.fen()}`);
             stockfish.postMessage('go movetime 1000');
         }
@@ -81,9 +98,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (move === null) return 'snapback';
 
-        window.setTimeout(makeSmartMove, 250);
-        recordMove(move.san, moveCount); // Записываем и отобразите ход с указанием количества ходов
+        recordMove(move.san, moveCount);
         moveCount++;
+        checkGameOver();
+        window.setTimeout(makeSmartMove, 250);
+
     };
 
     // Функция для обработки анимации привязки конца фрагмента
