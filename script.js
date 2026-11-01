@@ -9,6 +9,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Функция для выполнения произвольного перемещения компьютера
     let stockfish = null;
+    function playChessSound(actionType) {
+        let audioPath = '';
+            
+        if (actionType === 'capture') {
+            audioPath = 'sounds/capture.mp3'; 
+        } else {
+            audioPath = 'sounds/move.mp3';    //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        }
+
+        const audio = new Audio(audioPath);
+        audio.play().catch(error => console.log("звук заблокирован:", error));
+    }
 
     // Инициализируем движок
     try {
@@ -32,6 +44,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const promotion = bestMove.length > 4 ? bestMove[4] : 'q';
 
                 const move = game.move({ from, to, promotion });
+
+                if (move.captured) {
+                        playChessSound('capture');
+                    } else {
+                        playChessSound('move');  
+                    }
 
                 if (move) {
                     board.position(game.fen());
@@ -75,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+
     // Функция для записи и отображения перемещения в истории перемещений
     const recordMove = (move, count) => {
         const formattedMove = count % 2 === 1 ? `${Math.ceil(count / 2)}. ${move}` : `${move} -`;
@@ -97,6 +116,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (move === null) return 'snapback';
+
+        if (move.captured) {
+            playChessSound('capture');
+        } else {
+            playChessSound('move');
+        }
 
         recordMove(move.san, moveCount);
         moveCount++;
