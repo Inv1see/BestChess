@@ -6,12 +6,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const moveHistory = document.getElementById('move-history'); // История перемещений
     let moveCount = 1; // Инициализируем количество ходов
     
-    // Теперь userColor всегда соответствует тому, чья очередь ходить по правилам Chess.js
     // 'w' - белые, 'b' - черные
     let userColor = 'w'; 
     
+    // Стейт способностей
     const abilityState = {
-        phantomQueen: null    // { square: 'e4', color: 'w', moveCountTrigger: 0 }
+        phantomQueen: null,    // { square: 'e4', color: 'w', moveCountTrigger: 0 }
+        lasso: null            // { knightSquare: 'c3', affectedPieces: ['b2', 'd4'], expiresAtMove: 0 }
     };
 
     function playChessSound(actionType) {
@@ -31,11 +32,43 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     };
 
-    // возвратка ферзя
+    // Функция проверки соседних клеток для Лассо
+    const getNeighbors = (square) => {
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+        const fileIdx = files.indexOf(square[0]);
+        const rank = parseInt(square[1]);
+        const neighbors = [];
+
+        for (let df = -1; df <= 1; df++) {
+            for (let dr = -1; dr <= 1; dr++) {
+                if (df === 0 && dr === 0) continue;
+                const nf = files[fileIdx + df];
+                const nr = rank + dr;
+                if (nf && nr >= 1 && nr <= 8) {
+                    neighbors.push(nf + nr);
+                }
+            }
+        }
+        return neighbors;
+    };
+
+    // Проверка лимитов перемещения Лассо
+    const isValidLassoMove = (source, target) => {
+        if (!abilityState.lasso) return true;
+        // Если фигура под лассо
+        if (abilityState.lasso.affectedPieces.includes(source)) {
+            const allowedSquares = getNeighbors(abilityState.lasso.knightSquare);
+            // Фигура может ходить только вокруг коня (на соседние с конем клетки)
+            if (!allowedSquares.includes(target)) {
+                return false;
+            }
+        }
+        return true;
+    };
+
     const checkAndTriggerPhantomReturn = () => {
         if (!abilityState.phantomQueen) return;
 
-        // отмена магии при смерти ферзя
         const pieces = game.board().flat();
         const currentQueen = pieces.find(p => p && p.type === 'q' && p.color === abilityState.phantomQueen.color);
         if (!currentQueen) {
@@ -44,45 +77,40 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Если наступил нужный ход для возвращения
         if (moveCount >= abilityState.phantomQueen.moveCountTrigger) {
             setTimeout(() => {
                 let currentQueenSquare = getPieceSquare('q', abilityState.phantomQueen.color);
-                
                 if (currentQueenSquare) {
-                    // Создаем временный экземпляр Chess для генерации «чистой» позиции без поломки истории ходов
                     const tempGame = new Chess(game.fen());
                     tempGame.remove(currentQueenSquare);
                     tempGame.put({ type: 'q', color: abilityState.phantomQueen.color }, abilityState.phantomQueen.square);
                     const success = game.load(tempGame.fen());
-                    
                     if (success) {
                         board.position(game.fen());
                         playChessSound('move');
                     }
                 }
-                
-                // Очищаем визуальные эффекты и стейт
                 document.querySelector(`.square-${abilityState.phantomQueen.square}`)?.classList.remove('phantom-zone');
                 abilityState.phantomQueen = null;
-                
-                // Полный сброс фокуса мыши
                 $('body').mouseup();
                 board.resize();
             }, 100);
         }
     };
 
+    // Очистка лассо по истечении ходов
+    const checkLassoExpiry = () => {
+        if (abilityState.lasso && moveCount >= abilityState.lasso.expiresAtMove) {
+            document.querySelectorAll('.lasso-zone').forEach(el => el.classList.remove('lasso-zone'));
+            abilityState.lasso = null;
+        }
+    };
+
     const checkGameOver = () => {
         if (!game.game_over()) return;
-
         setTimeout(() => {
             if (game.in_checkmate()) {
-                if (game.turn() === 'w') {
-                    alert("Шах и мат! Победили черные.");
-                } else {
-                    alert("Шах и мат! Победили белые.");
-                }
+                alert(game.turn() === 'w' ? "Шах и мат! Победили черные." : "Шах и мат! Победили белые.");
             } else if (game.in_stalemate()) {
                 alert("Пат! Ничья.");
             } else if (game.in_draw()) {
@@ -99,8 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const onDragStart = (source, piece) => {
         if (game.game_over()) return false;
-        
-        // Разрешаем перетаскивать только те фигуры, чей ход активен в данный момент
         return piece.search(userColor) === 0;
     };
 
@@ -113,19 +139,38 @@ document.addEventListener('DOMContentLoaded', () => {
             return 'snapback';
         }
 
+        // Проверка ограничения лассо "Cowboy"
+        if (!isValidLassoMove(source, target)) {
+            alert("Фигура поймана в лассо! Вы не можете отойти от Ковбоя дальше, чем на 1 клетку.");
+            return 'snapback';
+        }
+
         const isMagic = window.event && window.event.shiftKey; 
-        
-        if (isMagic && piece.type === 'q' && !abilityState.phantomQueen) {
-            abilityState.phantomQueen = { 
-                square: source, 
-                color: userColor,
-                moveCountTrigger: moveCount + 5
-            };
+        let activeLassoThisTurn = false;
+        let lassoTargets = [];
+
+        // АКТИВАЦИЯ СПОСОБНОСТИ КОНЯ
+        if (isMagic && piece.type === 'n') {
+            // Находим ВСЕ 8 соседних клеток вокруг ЦЕЛЕВОЙ клетки
+            const neighbors = getNeighbors(target);
             
-            // подсветка
-            setTimeout(() => {
-                document.querySelector(`.square-${source}`)?.classList.add('phantom-zone');
-            }, 50);
+            // Фильтруем только те соседние клетки, на которых реально стоят фигуры
+            neighbors.forEach(sq => {
+                if (game.get(sq)) lassoTargets.push(sq);
+            });
+
+            if (lassoTargets.length === 0) {
+                alert("Рядом с местом приземления нет фигур для захвата в лассо!");
+                return 'snapback';
+            }
+
+            activeLassoThisTurn = true;
+        }
+
+        // АКТИВАЦИЯ ФЕРЗЯ
+        if (isMagic && piece.type === 'q' && !abilityState.phantomQueen) {
+            abilityState.phantomQueen = { square: source, color: userColor, moveCountTrigger: moveCount + 5 };
+            setTimeout(() => { document.querySelector(`.square-${source}`)?.classList.add('phantom-zone'); }, 50);
         }
 
         const move = game.move({
@@ -134,69 +179,66 @@ document.addEventListener('DOMContentLoaded', () => {
             promotion: 'q',
         });
 
-        if (move === null) return 'snapback';
+        if (move === null) {
+            // Сброс стейта при неудачном ходе
+            if (isMagic && piece.type === 'q' && abilityState.phantomQueen && abilityState.phantomQueen.moveCountTrigger === moveCount + 5) {
+                abilityState.phantomQueen = null;
+                document.querySelectorAll('.phantom-zone').forEach(el => el.classList.remove('phantom-zone'));
+            }
+            return 'snapback';
+        }
+
+        // Если ход коня успешен, применяем стейт Лассо
+        if (activeLassoThisTurn) {
+            abilityState.lasso = {
+                knightSquare: target,
+                affectedPieces: lassoTargets, // Ограничение накладывается только на пойманные фигуры
+                expiresAtMove: moveCount + 3 // Действует 1 полный круг
+            };
+            
+            // Подсвечиваем ВСЕ 8 соседних клеток бирюзовым цветом
+            setTimeout(() => {
+                const neighborsToHighlight = getNeighbors(target);
+                neighborsToHighlight.forEach(sq => {
+                    document.querySelector(`.square-${sq}`)?.classList.add('lasso-zone');
+                });
+            }, 50);
+        }
 
         if (move.captured) { playChessSound('capture'); } else { playChessSound('move'); }
         
         recordMove(move.san, moveCount);
-        moveCount++;
         
-        // Переключение игрока 
+        moveCount++;
         userColor = game.turn();
         
-        // Проверяем способность Фантомного Ферзя сразу после совершения хода
+        // Проверяем тайминги магии
         checkAndTriggerPhantomReturn();
-        
+        checkLassoExpiry();
         checkGameOver();
     };
 
-    const onSnapEnd = () => {
-        board.position(game.fen());
-    };
+    const onSnapEnd = () => { board.position(game.fen()); };
 
-    const boardConfig = {
-        showNotation: true,
-        draggable: true,
-        position: 'start',
-        onDragStart,
-        onDrop,
-        onSnapEnd,
-        moveSpeed: 'fast',
-        snapBackSpeed: 500,
-        snapSpeed: 100,
-    };
-
-    board = Chessboard('board', boardConfig);
+    board = Chessboard('board', {
+        showNotation: true, draggable: true, position: 'start',
+        onDragStart, onDrop, onSnapEnd,
+        moveSpeed: 'fast', snapBackSpeed: 500, snapSpeed: 100,
+    });
 
     document.querySelector('.play-again').addEventListener('click', () => {
         game.reset();
         board.start();
-        if (board.orientation() !== 'white') {
-            board.orientation('white');
-        }
         moveHistory.textContent = '';
         moveCount = 1;
-        userColor = 'w'; // Сбрасываем ход на белых
-        document.querySelectorAll('.phantom-zone').forEach(el => el.classList.remove('phantom-zone'));
+        userColor = 'w';
+        document.querySelectorAll('.phantom-zone, .lasso-zone').forEach(el => {
+            el.classList.remove('phantom-zone', 'lasso-zone');
+        });
         abilityState.phantomQueen = null;
+        abilityState.lasso = null;
     });
 
-    document.querySelector('.flip-board').addEventListener('click', () => {
-        board.flip();
-    });
-
-    window.addEventListener('resize', () => {
-        board.resize();
-    });
-
-    let isTouchingPiece = false;
-    $('#board').on('touchstart', '.piece-417db', function (e) {
-        isTouchingPiece = true;
-    });
-    $('#board').on('touchmove', function (e) {
-        if (isTouchingPiece) { e.preventDefault(); }
-    });
-    $('#board').on('touchend touchcancel', function (e) {
-        isTouchingPiece = false;
-    });
+    document.querySelector('.flip-board').addEventListener('click', () => { board.flip(); });
+    window.addEventListener('resize', () => { board.resize(); });
 });
