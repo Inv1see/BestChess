@@ -6,36 +6,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const moveHistory = document.getElementById('move-history'); // История перемещений
     let moveCount = 1; // Инициализируем количество ходов
     let userColor = 'w'; // Инициализируем цвет пользователя как белый
+    
+    const abilityState = {
+        phantomQueen: null    // { square: 'e4', color: 'w', moveCountTrigger: 0 }
+    };
 
-    // Функция для выполнения произвольного перемещения компьютера
     let stockfish = null;
 
-    // это функция для звука типа
     function playChessSound(actionType) {
         let audioPath = '';
-        
-        if (actionType === 'capture') {audioPath = 'sounds/capture.mp3';} else audioPath = 'sounds/move.mp3';
-
+        if (actionType === 'capture') { audioPath = 'sounds/capture.mp3'; } else audioPath = 'sounds/move.mp3';
         const audio = new Audio(audioPath);
         audio.play().catch(error => console.log("звук заблокирован", error));
     }
 
     // Инициализируем движок
     try {
-        // Пытаемся запустить в фоновом режиме (лучший вариант)
         stockfish = new Worker('stockfish-19-lite-single.js');
-
-        // Настраиваем сложность (0 - слабый, 20 - очень сильный)
         stockfish.postMessage('setoption name Skill Level value 5');
 
-        // Слушаем ответы от движка
         stockfish.onmessage = function (event) {
             const message = event.data;
 
             if (typeof message === 'string' && message.startsWith('bestmove')) {
-                const bestMove = message.split(' ')[1]; // Например, "e2e4"
+                const bestMove = message.split(' ')[1];
 
-                if (bestMove === '(none)') return;
+                if (bestMove === '(none)' || bestMove === '0000') return;
 
                 const from = bestMove.substring(0, 2);
                 const to = bestMove.substring(2, 4);
@@ -44,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const move = game.move({ from, to, promotion });
 
                 if (move) {
-
                     if (move.captured) {
                         playChessSound('capture');
                     } else {
@@ -54,19 +49,74 @@ document.addEventListener('DOMContentLoaded', () => {
                     board.position(game.fen());
                     recordMove(move.san, moveCount);
                     moveCount++;
+                    
+                    // Проверяем способность Ферзя ПОСЛЕ хода бота
+                    checkAndTriggerPhantomReturn();
+                    
                     checkGameOver();
                 }
             }
         };
     } catch (e) {
-        console.error("Не удалось загрузить Stockfish как Worker. Возможно, вы открыли файл без сервера.", e);
-        alert("Ошибка: для работы бота нужно запускать игру через локальный сервер (например, Live Server), а не двойным кликом!");
+        console.error("Не удалось загрузить Stockfish как Worker.", e);
+        alert("Ошибка: для работы бота нужно запускать игру через локальный сервер!");
     }
 
-    const checkGameOver = () => {
-        if (!game.game_over()) return; // Если игра идет, ничего не делаем
+    const getPieceSquare = (type, color) => {
+        for (let r = 1; r <= 8; r++) {
+            for (let f of ['a','b','c','d','e','f','g','h']) {
+                let p = game.get(f+r);
+                if (p && p.type === type && p.color === color) return f+r;
+            }
+        }
+        return null;
+    };
 
-        // Небольшая задержка, чтобы доска успела перерисоваться перед alert
+    // возвратка ферзя
+    const checkAndTriggerPhantomReturn = () => {
+        if (!abilityState.phantomQueen) return;
+
+        // отмена магии при смерти ферзя
+        const pieces = game.board().flat();
+        const currentQueen = pieces.find(p => p && p.type === 'q' && p.color === abilityState.phantomQueen.color);
+        if (!currentQueen) {
+            document.querySelector(`.square-${abilityState.phantomQueen.square}`)?.classList.remove('phantom-zone');
+            abilityState.phantomQueen = null;
+            return;
+        }
+
+        // Если наступил нужный ход для возвращения (через 2 полных хода = +4 к moveCount)
+        if (moveCount >= abilityState.phantomQueen.moveCountTrigger) {
+            setTimeout(() => {
+                let currentQueenSquare = getPieceSquare('q', abilityState.phantomQueen.color);
+                
+                if (currentQueenSquare) {
+                    // Создаем временный экземпляр Chess для генерации «чистой» позиции без поломки истории ходов
+                    const tempGame = new Chess(game.fen());
+                    tempGame.remove(currentQueenSquare);
+                    tempGame.put({ type: 'q', color: abilityState.phantomQueen.color }, abilityState.phantomQueen.square);
+                    const success = game.load(tempGame.fen());
+                    
+                    if (success) {
+                        board.position(game.fen());
+                        playChessSound('move');
+                    }
+                }
+                
+                // Очищаем визуальные эффекты и стейт
+                document.querySelector(`.square-${abilityState.phantomQueen.square}`)?.classList.remove('phantom-zone');
+                abilityState.phantomQueen = null;
+                
+                // Полный сброс фокуса мыши
+                $('body').mouseup();
+                board.resize();
+            }, 100);
+        }
+    };
+
+    const checkGameOver = () => {
+        if (!game.game_over()) return;
+
         setTimeout(() => {
             if (game.in_checkmate()) {
                 if (game.turn() === 'w') {
@@ -77,12 +127,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (game.in_stalemate()) {
                 alert("Пат! Ничья.");
             } else if (game.in_draw()) {
-                alert("Ничья! (Правило 50 ходов, повторение или недостаточно фигур)");
+                alert("Ничья!");
             }
         }, 100);
     };
 
-    // Функция, которая заставляет бота задуматься
     const makeSmartMove = () => {
         if (game.game_over()) return;
 
@@ -92,21 +141,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Функция для записи и отображения перемещения в истории перемещений
     const recordMove = (move, count) => {
         const formattedMove = count % 2 === 1 ? `${Math.ceil(count / 2)}. ${move}` : `${move} -`;
         moveHistory.textContent += formattedMove + ' ';
-        moveHistory.scrollTop = moveHistory.scrollHeight; // Автоматическая прокрутка до последнего хода
+        moveHistory.scrollTop = moveHistory.scrollHeight;
     };
 
-    // Функция для обработки начальной позиции перетаскивания
     const onDragStart = (source, piece) => {
-        // Разрешить пользователю перетаскивать только свои собственные фрагменты в зависимости от цвета
-        return !game.game_over() && piece.search(userColor) === 0;
+        if (game.game_over()) return false;
+        return piece.search(userColor) === 0;
     };
 
-    // Функция для обработки падения фигуры на доску
     const onDrop = (source, target) => {
+        const piece = game.get(source);
+        if (!piece) return 'snapback';
+
+        if (abilityState.phantomQueen && target === abilityState.phantomQueen.square) {
+            alert("Эта клетка занята бессмертным фантомом Ферзя!");
+            return 'snapback';
+        }
+
+        const isMagic = window.event && window.event.shiftKey; 
+        
+        if (isMagic && piece.type === 'q' && !abilityState.phantomQueen) {
+            abilityState.phantomQueen = { 
+                square: source, 
+                color: userColor,
+                moveCountTrigger: moveCount + 4 
+            };
+            
+            // подсветка
+            setTimeout(() => {
+                document.querySelector(`.square-${source}`)?.classList.add('phantom-zone');
+            }, 50);
+        }
+
         const move = game.move({
             from: source,
             to: target,
@@ -114,24 +183,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (move === null) return 'snapback';
-        if (move.captured) {
-            playChessSound('capture');
-        } else {
-            playChessSound('move');
-        }
+
+        if (move.captured) { playChessSound('capture'); } else { playChessSound('move'); }
+        
         recordMove(move.san, moveCount);
         moveCount++;
+        
         checkGameOver();
+        
         window.setTimeout(makeSmartMove, 250);
-
     };
 
-    // Функция для обработки анимации привязки конца фрагмента
     const onSnapEnd = () => {
         board.position(game.fen());
     };
 
-    // Параметры конфигурации шахматной доски
     const boardConfig = {
         showNotation: true,
         draggable: true,
@@ -144,10 +210,8 @@ document.addEventListener('DOMContentLoaded', () => {
         snapSpeed: 100,
     };
 
-    // Инициализируем шахматную доску
     board = Chessboard('board', boardConfig);
 
-    // Event listener для кнопки "Играть снова"
     document.querySelector('.play-again').addEventListener('click', () => {
         game.reset();
         board.start();
@@ -157,51 +221,28 @@ document.addEventListener('DOMContentLoaded', () => {
         moveHistory.textContent = '';
         moveCount = 1;
         userColor = 'w';
+        document.querySelectorAll('.phantom-zone').forEach(el => el.classList.remove('phantom-zone'));
+        abilityState.phantomQueen = null;
     });
 
-    // Event listener для кнопки "Установить положение"
-    // document.querySelector('.set-pos').addEventListener('click', () => {
-    //     const fen = prompt("Введите обозначение FEN для желаемой позиции!");
-    //     if (fen !== null) {
-    //         if (game.load(fen)) {
-    //             board.position(fen);
-    //             moveHistory.textContent = '';
-    //             moveCount = 1;
-    //             userColor = 'w';
-    //         } else {
-    //             alert("Недопустимое обозначение FEN. Пожалуйста, попробуйте снова.");
-    //         }
-    //     }
-    // });
-
-    // Event listener для кнопки "Перевернуть доску"
     document.querySelector('.flip-board').addEventListener('click', () => {
         board.flip();
         makeSmartMove();
-        // Переключаем цвет пользователя после переворачивания доски
         userColor = userColor === 'w' ? 'b' : 'w';
     });
+
     window.addEventListener('resize', () => {
         board.resize();
     });
 
     let isTouchingPiece = false;
-
     $('#board').on('touchstart', '.piece-417db', function (e) {
-        // Если коснулись фигуры — разрешаем перетаскивание
         isTouchingPiece = true;
     });
-
     $('#board').on('touchmove', function (e) {
-        // Если мы тащим фигуру, блокируем скролл страницы
-        if (isTouchingPiece) {
-            e.preventDefault();
-        }
+        if (isTouchingPiece) { e.preventDefault(); }
     });
-
     $('#board').on('touchend touchcancel', function (e) {
-        // Отпустили палец — всё снова можно
         isTouchingPiece = false;
     });
-
 });
