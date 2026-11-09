@@ -219,6 +219,11 @@ document.addEventListener('DOMContentLoaded', () => {
         game.reset();
         board.start();
         userColor = 'w';
+        if (board.orientation() !== 'white') {
+            board.orientation('white');
+        }
+        moveHistory.textContent = '';
+        moveCount = 1;
     });
 
     // Заглушки
