@@ -11,13 +11,26 @@
 </head>
 
 <body>
-    <div class="container">
+    <div id="main-menu" class="menu-screen">
+        <h1 class="game-title">Best Chess</h1>
+
+        <div class="menu-buttons">
+            <button class="menu-btn" id="btn-online">
+                Быстрый
+            </button>
+            <button class="menu-btn" id="btn-ranked">Рейтинговый</button>
+            <button class="menu-btn" id="btn-bot">С ботом</button>
+        </div>
+    </div>
+
+    <div class="container hidden" id="game-screen">
         <h1>Крутые шахматы</h1>
         <div class="board" id="board"></div>
         <div class="buttons">
             <button class="play-again">Играть снова</button>
-            <!-- <button class="set-pos">Установить позицию</button> -->
             <button class="flip-board">Перевернуть доску</button>
+            <!-- опционально -->
+            <button id="btn-back">В меню</button>
         </div>
         <div id="move-history" class="move-history"></div>
     </div>

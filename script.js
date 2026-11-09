@@ -13,8 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // это функция для звука типа
     function playChessSound(actionType) {
         let audioPath = '';
-        
-        if (actionType === 'capture') {audioPath = 'sounds/capture.mp3';} else audioPath = 'sounds/move.mp3';
+
+        if (actionType === 'capture') { audioPath = 'sounds/capture.mp3'; } else audioPath = 'sounds/move.mp3';
 
         const audio = new Audio(audioPath);
         audio.play().catch(error => console.log("звук заблокирован", error));
@@ -203,5 +203,35 @@ document.addEventListener('DOMContentLoaded', () => {
         // Отпустили палец — всё снова можно
         isTouchingPiece = false;
     });
+
+    // Логика главного меню
+    const menuScreen = document.getElementById('main-menu');
+    const gameScreen = document.getElementById('game-screen');
+
+    const startGame = () => {
+        menuScreen.classList.add('hidden');      // Скрываем меню
+        gameScreen.classList.remove('hidden');   // Показываем игру
+        setTimeout(() => { board.resize(); }, 50);
+    };
+
+    document.getElementById('btn-bot').addEventListener('click', () => {
+        startGame();
+        game.reset();
+        board.start();
+        userColor = 'w';
+    });
+
+    // Заглушки
+    document.getElementById('btn-online').addEventListener('click', () => alert("Скоро!"));
+    document.getElementById('btn-ranked').addEventListener('click', () => alert("Скоро!"));
+
+    // ВОЗВРАТ В МЕНЮ
+    const btnBack = document.getElementById('btn-back');
+    if (btnBack) {
+        btnBack.addEventListener('click', () => {
+            gameScreen.classList.add('hidden');
+            menuScreen.classList.remove('hidden');
+        });
+    }
 
 });

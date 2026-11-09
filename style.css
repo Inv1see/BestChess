@@ -13,13 +13,125 @@ body {
     align-items: center;
     justify-content: center;
     background-color: #f2f2f2;
+    background-image: url("/img/фон/WB6fXTyM2mjDabwG2bXimiWnpsCiDMsSyBjfLJYpC7g5ebJ7wH7fKvcGlast54jX6LeNjpduVHr_Ieu7qGBhDeGg.jpg");
 }
 
+#main-menu.menu-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-image: url("img/фон/WB6fXTyM2mjDabwG2bXimiWnpsCiDMsSyBjfLJYpC7g5ebJ7wH7fKvcGlast54jX6LeNjpduVHr_Ieu7qGBhDeGg.jpg");
+    background-size: cover;
+    background-position: center;
+    z-index: 9999;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 12vh;
+    box-sizing: border-box;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* --- ЗАГОЛОВОК --- */
+.game-title {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 5.5rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    margin-bottom: 50px;
+    text-align: center;
+
+    /* Золотой градиент */
+    background: linear-gradient(to bottom, #fff7b0 0%, #f9d976 30%, #e2a130 50%, #f9d976 70%, #fff7b0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+
+    /* Оставляем ТОЛЬКО одну мягкую и аккуратную тень для объема */
+    /* Тень смещена вниз и вправо, чтобы создать эффект 3D без затемнения */
+    filter: drop-shadow(3px 4px 2px rgba(0, 0, 0, 0.6));
+}
+
+/* --- КОНТЕЙНЕР КНОПОК --- */
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    /* Расстояние между кнопками */
+}
+
+/* --- САМИ КНОПКИ --- */
+/* --- САМИ КНОПКИ --- */
+/* --- САМИ КНОПКИ --- */
+.menu-btn {
+    position: relative;
+    width: 260px;
+    height: 50px;
+    background: linear-gradient(to bottom, #5cb38c 0%, #2c7454 50%, #164a33 100%);
+    border: 1px solid #8ae0b4;
+
+    /* 1. Закругляем углы (чем больше px, тем круглее) */
+    border-radius: 12px;
+
+    /* 2. Делаем скошенные бока (как на картинке) */
+    /* Обрезаем по 15% с каждой стороны */
+    clip-path: polygon(15% 0%, 85% 0%,
+            100% 50%,
+            85% 100%, 15% 100%,
+            0% 50%);
+
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 500;
+    font-family: 'Arial', sans-serif;
+    cursor: pointer;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+
+    /* 3. Тени для объема */
+    box-shadow:
+        inset 0 2px 5px rgba(255, 255, 255, 0.5),
+        /* Блик сверху */
+        inset 0 -3px 6px rgba(0, 0, 0, 0.5),
+        /* Тень снизу */
+        0 4px 8px rgba(0, 0, 0, 0.6);
+    /* Тень на фон */
+
+    transition: filter 0.2s, transform 0.1s;
+    z-index: 1;
+}
+
+/* Наведение и нажатие */
+.menu-btn:hover {
+    filter: brightness(1.15);
+}
+
+.menu-btn:active {
+    transform: scale(0.97);
+}
+
+/* Иконка внутри кнопки */
+.menu-btn .icon {
+    width: 20px;
+    height: 20px;
+    fill: white;
+}
+
+
 .container {
-    background-color: #fff;
+    background-color: #ffffff;
     padding: 2rem;
     border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
     width: 100%;
     max-width: 480px;
     box-sizing: border-box;
