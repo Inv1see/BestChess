@@ -207,6 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Логика главного меню
     const menuScreen = document.getElementById('main-menu');
     const gameScreen = document.getElementById('game-screen');
+    const cabinetScreen = document.getElementById('cabinet-screen');
 
     const startGame = () => {
         menuScreen.classList.add('hidden');      // Скрываем меню
@@ -228,7 +229,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Заглушки
     document.getElementById('btn-online').addEventListener('click', () => alert("Скоро!"));
-    document.getElementById('btn-ranked').addEventListener('click', () => alert("Скоро!"));
+    /* Переход в личный кабинет */
+    document.getElementById('btn-ranked').addEventListener('click', () => {
+        menuScreen.classList.add('hidden');       // Скрываем главное меню
+        cabinetScreen.classList.remove('hidden'); // Показываем кабинет
+    });
+
+    /* Возвращение из кабинета в главное меню */
+    document.getElementById('btn-cabinet-back').addEventListener('click', () => {
+        cabinetScreen.classList.add('hidden');    // Скрываем кабинет
+        menuScreen.classList.remove('hidden');    // Показываем главное меню
+    });
 
     // ВОЗВРАТ В МЕНЮ
     const btnBack = document.getElementById('btn-back');
