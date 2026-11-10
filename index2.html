@@ -23,6 +23,49 @@
         </div>
     </div>
 
+    <!-- Экран личного кабинета игрока -->
+    <div id="cabinet-screen" class="cabinet-screen hidden">
+
+        <h1 class="game-title">Личный кабинет</h1>
+
+
+        <div class="cabinet-content">
+
+            <!-- Блок фотографии и информации игрока -->
+            <div class="cabinet-profile">
+
+                <!-- Пока пустое место для будущей фотографии -->
+                <div class="player-avatar-placeholder">
+                    <img
+                        src="img/profile/Profil228.jpg"
+                        class="player-avatar"
+                        alt="Фото игрока"
+                    >
+                </div>
+
+                <!-- Информация об игроке -->
+                <div class="cabinet-info">
+                    <h2>Профиль игрока</h2>
+
+                    <p>Имя игрока: <span>Игрок</span></p>
+                    <p>Рейтинг: <span>1000</span></p>
+                    <p>Победы: <span>0</span></p>
+                    <p>Поражения: <span>0</span></p>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Кнопку оставляем без изменений -->
+        <button id="btn-cabinet-back" class="menu-btn">
+            Назад в меню
+        </button>
+
+        
+
+    </div>
+
     <div class="container hidden" id="game-screen">
         <h1>Крутые шахматы</h1>
         <div class="board" id="board"></div>
