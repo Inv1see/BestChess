@@ -137,6 +137,14 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Синхронизация маны и способностей
+    socket.on('abilitySync', (data) => {
+        if (data && data.roomId && rooms[data.roomId]) {
+            if (data.fen) rooms[data.roomId].fen = data.fen;
+            socket.to(data.roomId).emit('abilitySync', data);
+        }
+    });
+
     // Отключение
     socket.on('disconnect', () => {
         const roomId = socket.roomId;
