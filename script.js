@@ -470,9 +470,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ПРОВЕРКА URL ==========
     const urlParams = new URLSearchParams(window.location.search);
     const roomFromUrl = urlParams.get('room');
+
     if (roomFromUrl) {
         currentRoomId = roomFromUrl;
-        socket.emit('joinRoom', roomFromUrl);
+
+        // Пришёл по ссылке — никаких экранов входа, сразу в игру
+        authScreen.classList.add('hidden');
+        menuScreen.classList.add('hidden');
+
+        const tryJoin = () => {
+            if (!socket.connected) return; // ждём подключения, событие 'connect' вызовет снова
+            socket.emit('joinRoom', roomFromUrl);
+        };
+
+        if (socket.connected) tryJoin();
+        socket.on('connect', tryJoin);
+    } else {
+        authToken ? showMenu() : showAuth();
     }
 
     // Кнопка «В меню»
