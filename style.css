@@ -243,6 +243,12 @@ button:hover {
     align-items: center;        /* Заголовок по центру */
     padding-top: 3vh;           /* Отступ заголовка от верха */
 
+    /* Отдельный фон личного кабинета */
+    background-image: url("img/фон/Rating_fone3.jpeg");
+    background-size: cover;       /* Заполняет весь экран */
+    background-position: center;  /* Центрирует изображение */
+    background-repeat: no-repeat; /* Не повторяет фон */    
+
     z-index: 9998;
 }
 
@@ -255,8 +261,8 @@ button:hover {
 /* Информация об игроке */
 .cabinet-content {
     width: 100%;
-    padding-left: 8vw;          /* Отступ информации от левого края */
-    text-align: left;           /* Выравнивание текста влево */
+    /*padding-left: 8vw;          /* Отступ информации от левого края */
+    text-align: center;           /* Выравнивание текста центр */
 }
 
 /* Заголовок профиля */
@@ -345,4 +351,48 @@ button:hover {
     object-fit: cover;     /* Фото заполнит круг без искажения */
     border: 3px solid #D4AF37;
     border-radius: 50%;    /* Круглая фотография */
+}
+
+/* Информация в личном кабинете */
+.cabinet-info {
+    color: #D4AF37;
+}
+
+/* Имя игрока */
+
+#cabinet-screen .cabinet-info .player-name {
+    position: fixed !important;
+    top: 140px;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+
+    font-size: 50px !important;
+    font-weight: bold;
+    text-align: center;
+    margin: 0;
+
+        /* Золотой градиент */
+    background: linear-gradient(to bottom, #fff7b0 0%, #f9d976 30%, #e2a130 50%, #f9d976 70%, #fff7b0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+
+    /* Оставляем ТОЛЬКО одну мягкую и аккуратную тень для объема */
+    /* Тень смещена вниз и вправо, чтобы создать эффект 3D без затемнения */
+    filter: drop-shadow(3px 4px 2px rgba(0, 0, 0, 0.6));
+    white-space: nowrap;
+}
+
+
+/* Статистика игрока */
+.cabinet-info p:not(.player-name) {
+    font-size: 1.5rem;
+    margin: 15px 0;
+}
+
+#cabinet-screen #btn-cabinet-back {
+    position: fixed;
+    bottom: 5vh;
+    left: 50%;
+    transform: translateX(-50%);
 }
