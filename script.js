@@ -1,56 +1,35 @@
-// Дожидаемся полной загрузки DOM перед выполнением кода
 document.addEventListener('DOMContentLoaded', () => {
-    let board = null; // Инициализируем шахматную доску
-    const game = new Chess(); // Создаём новый Chess.js игровой экземпляр
+    let board = null;
+    const game = new Chess();
 
-    const moveHistory = document.getElementById('move-history'); // История перемещений
-    let moveCount = 1; // Инициализируем количество ходов
-    let userColor = 'w'; // Инициализируем цвет пользователя как белый
+    const moveHistory = document.getElementById('move-history');
+    let moveCount = 1;
+    let userColor = 'w';
 
-    // Функция для выполнения произвольного перемещения компьютера
     let stockfish = null;
 
-    // это функция для звука типа
+    // ========== ЗВУКИ ==========
     function playChessSound(actionType) {
-        let audioPath = '';
-
-        if (actionType === 'capture') { audioPath = 'sounds/capture.mp3'; } else audioPath = 'sounds/move.mp3';
-
+        let audioPath = actionType === 'capture' ? 'sounds/capture.mp3' : 'sounds/move.mp3';
         const audio = new Audio(audioPath);
         audio.play().catch(error => console.log("звук заблокирован", error));
     }
 
-    // Инициализируем движок
+    // ========== STOCKFISH (режим с ботом) ==========
     try {
-        // Пытаемся запустить в фоновом режиме (лучший вариант)
         stockfish = new Worker('stockfish-19-lite-single.js');
-
-        // Настраиваем сложность (0 - слабый, 20 - очень сильный)
         stockfish.postMessage('setoption name Skill Level value 5');
-
-        // Слушаем ответы от движка
         stockfish.onmessage = function (event) {
             const message = event.data;
-
             if (typeof message === 'string' && message.startsWith('bestmove')) {
-                const bestMove = message.split(' ')[1]; // Например, "e2e4"
-
+                const bestMove = message.split(' ')[1];
                 if (bestMove === '(none)') return;
-
                 const from = bestMove.substring(0, 2);
                 const to = bestMove.substring(2, 4);
                 const promotion = bestMove.length > 4 ? bestMove[4] : 'q';
-
                 const move = game.move({ from, to, promotion });
-
                 if (move) {
-
-                    if (move.captured) {
-                        playChessSound('capture');
-                    } else {
-                        playChessSound('move');
-                    }
-
+                    playChessSound(move.captured ? 'capture' : 'move');
                     board.position(game.fen());
                     recordMove(move.san, moveCount);
                     moveCount++;
@@ -59,79 +38,73 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     } catch (e) {
-        console.error("Не удалось загрузить Stockfish как Worker. Возможно, вы открыли файл без сервера.", e);
-        alert("Ошибка: для работы бота нужно запускать игру через локальный сервер (например, Live Server), а не двойным кликом!");
+        console.error("Не удалось загрузить Stockfish:", e);
     }
 
-    const checkGameOver = () => {
-        if (!game.game_over()) return; // Если игра идет, ничего не делаем
+    const makeSmartMove = () => {
+        if (game.game_over() || !stockfish) return;
+        stockfish.postMessage(`position fen ${game.fen()}`);
+        stockfish.postMessage('go movetime 1000');
+    };
 
-        // Небольшая задержка, чтобы доска успела перерисоваться перед alert
+    // ========== ОБЩИЕ ФУНКЦИИ ==========
+    const checkGameOver = () => {
+        if (!game.game_over()) return;
         setTimeout(() => {
             if (game.in_checkmate()) {
-                if (game.turn() === 'w') {
-                    alert("Шах и мат! Победили черные (бот).");
-                } else {
-                    alert("Шах и мат! Победили белые (вы).");
-                }
+                alert(game.turn() === 'w'
+                    ? "Шах и мат! Победили черные."
+                    : "Шах и мат! Победили белые.");
             } else if (game.in_stalemate()) {
                 alert("Пат! Ничья.");
             } else if (game.in_draw()) {
-                alert("Ничья! (Правило 50 ходов, повторение или недостаточно фигур)");
+                alert("Ничья!");
             }
         }, 100);
     };
 
-    // Функция, которая заставляет бота задуматься
-    const makeSmartMove = () => {
-        if (game.game_over()) return;
-
-        if (stockfish) {
-            stockfish.postMessage(`position fen ${game.fen()}`);
-            stockfish.postMessage('go movetime 1000');
-        }
-    };
-
-    // Функция для записи и отображения перемещения в истории перемещений
     const recordMove = (move, count) => {
         const formattedMove = count % 2 === 1 ? `${Math.ceil(count / 2)}. ${move}` : `${move} -`;
         moveHistory.textContent += formattedMove + ' ';
-        moveHistory.scrollTop = moveHistory.scrollHeight; // Автоматическая прокрутка до последнего хода
+        moveHistory.scrollTop = moveHistory.scrollHeight;
     };
 
-    // Функция для обработки начальной позиции перетаскивания
+    // ========== СОКЕТ ==========
+    const BACKEND_URL = 'https://chess-server-nnkd.onrender.com';
+    const socket = io(BACKEND_URL, { transports: ['websocket', 'polling'] });
+
+    let currentRoomId = null;
+    let isOnlineMode = false;
+
+    // ========== ОБРАБОТЧИКИ ДОСКИ ==========
     const onDragStart = (source, piece) => {
-        // Разрешить пользователю перетаскивать только свои собственные фрагменты в зависимости от цвета
         return !game.game_over() && piece.search(userColor) === 0;
     };
 
-    // Функция для обработки падения фигуры на доску
     const onDrop = (source, target) => {
-        const move = game.move({
-            from: source,
-            to: target,
-            promotion: 'q',
-        });
-
+        const move = game.move({ from: source, to: target, promotion: 'q' });
         if (move === null) return 'snapback';
-        if (move.captured) {
-            playChessSound('capture');
-        } else {
-            playChessSound('move');
-        }
+
+        playChessSound(move.captured ? 'capture' : 'move');
         recordMove(move.san, moveCount);
         moveCount++;
         checkGameOver();
-        window.setTimeout(makeSmartMove, 250);
 
+        if (isOnlineMode && currentRoomId) {
+            socket.emit('move', {
+                roomId: currentRoomId,
+                move: move,
+                fen: game.fen()
+            });
+        } else {
+            window.setTimeout(makeSmartMove, 250);
+        }
     };
 
-    // Функция для обработки анимации привязки конца фрагмента
     const onSnapEnd = () => {
         board.position(game.fen());
     };
 
-    // Параметры конфигурации шахматной доски
     const boardConfig = {
         showNotation: true,
         draggable: true,
@@ -144,99 +117,171 @@ document.addEventListener('DOMContentLoaded', () => {
         snapSpeed: 100,
     };
 
-    // Инициализируем шахматную доску
     board = Chessboard('board', boardConfig);
 
-    // Event listener для кнопки "Играть снова"
+    // ========== КНОПКИ В ИГРЕ ==========
     document.querySelector('.play-again').addEventListener('click', () => {
+        if (isOnlineMode) {
+            alert('В онлайн-режиме реванш пока не поддерживается. Создайте новую игру.');
+            return;
+        }
         game.reset();
         board.start();
-        if (board.orientation() !== 'white') {
-            board.orientation('white');
-        }
+        if (board.orientation() !== 'white') board.orientation('white');
         moveHistory.textContent = '';
         moveCount = 1;
         userColor = 'w';
     });
 
-    // Event listener для кнопки "Установить положение"
-    // document.querySelector('.set-pos').addEventListener('click', () => {
-    //     const fen = prompt("Введите обозначение FEN для желаемой позиции!");
-    //     if (fen !== null) {
-    //         if (game.load(fen)) {
-    //             board.position(fen);
-    //             moveHistory.textContent = '';
-    //             moveCount = 1;
-    //             userColor = 'w';
-    //         } else {
-    //             alert("Недопустимое обозначение FEN. Пожалуйста, попробуйте снова.");
-    //         }
-    //     }
-    // });
-
-    // Event listener для кнопки "Перевернуть доску"
     document.querySelector('.flip-board').addEventListener('click', () => {
         board.flip();
-        makeSmartMove();
-        // Переключаем цвет пользователя после переворачивания доски
-        userColor = userColor === 'w' ? 'b' : 'w';
-    });
-    window.addEventListener('resize', () => {
-        board.resize();
-    });
-
-    let isTouchingPiece = false;
-
-    $('#board').on('touchstart', '.piece-417db', function (e) {
-        // Если коснулись фигуры — разрешаем перетаскивание
-        isTouchingPiece = true;
-    });
-
-    $('#board').on('touchmove', function (e) {
-        // Если мы тащим фигуру, блокируем скролл страницы
-        if (isTouchingPiece) {
-            e.preventDefault();
+        if (!isOnlineMode) {
+            makeSmartMove();
+            userColor = userColor === 'w' ? 'b' : 'w';
         }
     });
 
-    $('#board').on('touchend touchcancel', function (e) {
-        // Отпустили палец — всё снова можно
-        isTouchingPiece = false;
-    });
+    window.addEventListener('resize', () => board.resize());
 
-    // Логика главного меню
+    // ========== ТАЧ-СОБЫТИЯ ==========
+    let isTouchingPiece = false;
+    $('#board').on('touchstart', '.piece-417db', () => { isTouchingPiece = true; });
+    $('#board').on('touchmove', (e) => { if (isTouchingPiece) e.preventDefault(); });
+    $('#board').on('touchend touchcancel', () => { isTouchingPiece = false; });
+
+    // ========== МЕНЮ ==========
     const menuScreen = document.getElementById('main-menu');
     const gameScreen = document.getElementById('game-screen');
 
     const startGame = () => {
-        menuScreen.classList.add('hidden');      // Скрываем меню
-        gameScreen.classList.remove('hidden');   // Показываем игру
-        setTimeout(() => { board.resize(); }, 50);
+        menuScreen.classList.add('hidden');
+        gameScreen.classList.remove('hidden');
+        setTimeout(() => board.resize(), 50);
     };
 
     document.getElementById('btn-bot').addEventListener('click', () => {
+        isOnlineMode = false;
+        currentRoomId = null;
         startGame();
         game.reset();
         board.start();
         userColor = 'w';
-        if (board.orientation() !== 'white') {
-            board.orientation('white');
-        }
+        if (board.orientation() !== 'white') board.orientation('white');
         moveHistory.textContent = '';
         moveCount = 1;
     });
 
-    // Заглушки
-    document.getElementById('btn-online').addEventListener('click', () => alert("Скоро!"));
+    // «Быстрый» = онлайн-игра
+    document.getElementById('btn-online').addEventListener('click', () => {
+        console.log('Быстрый: открываю модалку');
+        document.getElementById('share-link').value = 'Создаём игру...';
+        document.getElementById('link-modal').classList.remove('hidden');
+        socket.emit('createRoom');
+    });
+
     document.getElementById('btn-ranked').addEventListener('click', () => alert("Скоро!"));
 
-    // ВОЗВРАТ В МЕНЮ
+    // ========== ОНЛАЙН-СОБЫТИЯ ==========
+    socket.on('roomCreated', (roomId) => {
+        console.log('Комната создана:', roomId);
+        currentRoomId = roomId;
+        isOnlineMode = true;
+
+        const link = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+        const input = document.getElementById('share-link');
+        const modal = document.getElementById('link-modal');
+        if (input) input.value = link;
+        if (modal) modal.classList.remove('hidden');
+        else console.error('link-modal не найден!');
+    });
+
+    document.getElementById('copy-link-btn').addEventListener('click', () => {
+        const link = document.getElementById('share-link').value;
+        navigator.clipboard.writeText(link).then(() => {
+            document.getElementById('copy-link-btn').textContent = 'Скопировано!';
+            setTimeout(() => {
+                document.getElementById('copy-link-btn').textContent = 'Копировать';
+            }, 1500);
+        }).catch(() => {
+            document.getElementById('share-link').select();
+            document.execCommand('copy');
+        });
+    });
+
+    document.getElementById('close-modal-btn').addEventListener('click', () => {
+        document.getElementById('link-modal').classList.add('hidden');
+    });
+
+    socket.on('opponentJoined', () => {
+        const waiting = document.getElementById('waiting-text');
+        if (waiting) {
+            waiting.textContent = 'Соперник подключился! Игра началась.';
+            waiting.style.color = '#2c7454';
+        }
+        setTimeout(() => {
+            document.getElementById('link-modal').classList.add('hidden');
+        }, 1500);
+    });
+
+    socket.on('gameStarted', ({ color, fen }) => {
+        isOnlineMode = true;
+        userColor = color;
+        startGame();
+        if (fen && fen !== 'start') {
+            game.load(fen);
+            board.position(fen);
+        } else {
+            game.reset();
+            board.start();
+        }
+
+        board.orientation(color === 'w' ? 'white' : 'black');
+        moveHistory.textContent = '';
+        moveCount = 1;
+        document.getElementById('link-modal').classList.add('hidden');
+    });
+
+    socket.on('errorMsg', (msg) => {
+        alert(msg);
+        document.getElementById('game-screen').classList.add('hidden');
+        document.getElementById('main-menu').classList.remove('hidden');
+    });
+
+    socket.on('opponentMove', ({ move, fen }) => {
+        game.move(move);
+        board.position(fen);
+        recordMove(move.san, moveCount);
+        moveCount++;
+        checkGameOver();
+        playChessSound(move.captured ? 'capture' : 'move');
+    });
+
+    socket.on('opponentLeft', () => {
+        alert('Соперник покинул игру.');
+        isOnlineMode = false;
+        currentRoomId = null;
+        document.getElementById('game-screen').classList.add('hidden');
+        document.getElementById('main-menu').classList.remove('hidden');
+    });
+
+    // ========== ПРОВЕРКА URL ==========
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomFromUrl = urlParams.get('room');
+    if (roomFromUrl) {
+        currentRoomId = roomFromUrl;
+        socket.emit('joinRoom', roomFromUrl);
+    }
+
+    // Кнопка «В меню»
     const btnBack = document.getElementById('btn-back');
     if (btnBack) {
         btnBack.addEventListener('click', () => {
+            if (isOnlineMode) {
+                window.location.href = window.location.pathname;
+                return;
+            }
             gameScreen.classList.add('hidden');
             menuScreen.classList.remove('hidden');
         });
     }
-
 });
