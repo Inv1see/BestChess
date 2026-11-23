@@ -203,3 +203,255 @@ button:hover {
 .highlight2-9c5d2 {
     box-shadow: inset 0 0 0 100px rgba(255, 255, 0, 0.3) !important;
 }
+
+/* ===== ЛИЧНЫЙ КАБИНЕТ ===== */
+
+.cabinet-screen {
+    position: fixed;
+    inset: 0;
+    /* Экран занимает всю область окна */
+    width: 100%;
+    height: 100vh;
+
+    display: flex;
+    flex-direction: column;
+    /* Элементы располагаются сверху вниз */
+    align-items: center;
+    /* Заголовок по центру */
+    padding-top: 3vh;
+    /* Отступ заголовка от верха */
+
+    /* Отдельный фон личного кабинета */
+    background-image: url("фон/Rating_fone3.jpeg");
+    background-size: cover;
+    /* Заполняет весь экран */
+    background-position: center;
+    /* Центрирует изображение */
+    background-repeat: no-repeat;
+    /* Не повторяет фон */
+
+    z-index: 10001;
+    justify-content: flex-start;
+    gap: 0;
+    overflow-y: auto;
+    /* страховка: даже на маленьком экране кнопки не потеряются */
+    padding-bottom: 4vh;
+}
+
+/* Главный заголовок личного кабинета */
+.cabinet-screen .game-title {
+    font-size: 4rem;
+    /* чуть компактнее вместо 5.5rem */
+    margin-bottom: 10px;
+}
+
+
+
+/* Адаптация заголовка для небольших экранов */
+@media (max-width: 700px) {
+    .cabinet-screen .game-title {
+        font-size: 3rem;
+    }
+
+    .cabinet-content {
+        padding-left: 6vw;
+    }
+}
+
+
+/* ===== ПРОФИЛЬ ИГРОКА ===== */
+
+
+
+/* Расположение фотографии и информации */
+.cabinet-profile {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    /* Расстояние между фото и текстом */
+}
+
+/* Место для будущей фотографии */
+.player-avatar-placeholder {
+    width: 130px;
+    /* Ширина места под фото */
+    height: 130px;
+    /* Высота места под фото */
+    min-width: 130px;
+    border: 3px solid #D4AF37;
+    /* Золотая рамка */
+    border-radius: 50%;
+    /* Круглая форма */
+    background: rgba(30, 50, 65, 0.35);
+}
+
+/* Информация игрока */
+.cabinet-info h2 {
+    text-align: left;
+    margin-bottom: 10px;
+}
+
+.cabinet-info p {
+    text-align: left;
+    margin-bottom: 5px;
+}
+
+/* Адаптация для небольших экранов */
+@media (max-width: 600px) {
+    .cabinet-content {
+        padding-left: 5vw;
+    }
+
+    .cabinet-profile {
+        gap: 15px;
+    }
+
+    .player-avatar-placeholder {
+        width: 100px;
+        height: 100px;
+        min-width: 100px;
+    }
+}
+
+.player-avatar {
+    width: 150px;
+    /* Ширина фотографии */
+    height: 150px;
+    /* Высота фотографии */
+    object-fit: cover;
+    /* Фото заполнит круг без искажения */
+    border: 3px solid #D4AF37;
+    border-radius: 50%;
+    /* Круглая фотография */
+}
+
+/* Информация в личном кабинете */
+.cabinet-info {
+    color: #D4AF37;
+}
+
+/* Имя игрока */
+
+#cabinet-screen .cabinet-info .player-name {
+    position: fixed !important;
+    top: 140px;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+
+    font-size: 50px !important;
+    font-weight: bold;
+    text-align: center;
+    margin: 0;
+
+    /* Золотой градиент */
+    background: linear-gradient(to bottom, #fff7b0 0%, #f9d976 30%, #e2a130 50%, #f9d976 70%, #fff7b0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+
+    /* Оставляем ТОЛЬКО одну мягкую и аккуратную тень для объема */
+    /* Тень смещена вниз и вправо, чтобы создать эффект 3D без затемнения */
+    filter: drop-shadow(3px 4px 2px rgba(0, 0, 0, 0.6));
+    white-space: nowrap;
+}
+
+
+/* Статистика игрока */
+.cabinet-info p:not(.player-name) {
+    font-size: 1.5rem;
+    margin: 15px 0;
+}
+
+.cabinet-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 15px;
+    margin-bottom: 4vh;
+}
+
+#auth-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 10002;
+    /* выше меню (9999) и кабинета */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-box {
+    background: #fff;
+    padding: 30px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 300px;
+}
+
+.auth-box input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+}
+
+btnCabi #auth-error {
+    color: red;
+    min-height: 18px;
+}
+
+.auth-box button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.cabinet-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 20px;
+}
+
+#avatar-box {
+    width: 130px;
+    height: 130px;
+    /* было заметно больше — это и съедало высоту */
+    cursor: pointer;
+    margin-bottom: 5px;
+}
+
+
+.cabinet-info {
+    color: #FFD700;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.72);
+    /* было 0.45 — теперь заметно темнее */
+    padding: 15px 40px;
+    border-radius: 10px;
+    border: 2px solid rgba(212, 175, 55, 0.8);
+    /* ярче золотая рамка */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+}
+
+.cabinet-info p {
+    font-size: 1.5rem;
+    /* было 1.3rem */
+    font-weight: 700;
+    margin: 10px 0;
+    text-shadow: 2px 2px 3px rgba(0, 0, 0, 1),
+        0 0 8px rgba(0, 0, 0, 0.9);
+}
+
+/* Золотой градиент для имени — то, что осталось от старого правила */
+.player-name {
+    font-size: 40px;
+    font-weight: bold;
+    margin: 8px 0;
+    background: linear-gradient(to bottom, #fff7b0 0%, #f9d976 30%, #e2a130 50%, #f9d976 70%, #fff7b0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(2px 3px 3px rgba(0, 0, 0, 0.9));
+}

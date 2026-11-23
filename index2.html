@@ -11,6 +11,19 @@
 </head>
 
 <body>
+
+    <div id="auth-screen">
+        <div class="auth-box">
+            <h2>Вход в Best Chess</h2>
+            <input id="auth-login" placeholder="Логин">
+            <input id="auth-password" type="password" placeholder="Пароль">
+            <p id="auth-error"></p>
+            <button id="btn-login">Войти</button>
+            <button id="btn-register">Регистрация</button>
+            <button id="btn-guest">Играть без регистрации</button>
+        </div>
+    </div>
+
     <div id="main-menu" class="menu-screen">
         <h1 class="game-title">Best Chess</h1>
 
@@ -20,6 +33,8 @@
             </button>
             <button class="menu-btn" id="btn-ranked">Рейтинговый</button>
             <button class="menu-btn" id="btn-bot">С ботом</button>
+
+            <button class="menu-btn" id="btn-cabinet">Личный кабинет</button>
         </div>
     </div>
 
@@ -35,13 +50,28 @@
         <div id="move-history" class="move-history"></div>
     </div>
 
+    <div id="cabinet-screen" class="cabinet-screen hidden">
+        <h1 class="game-title">Личный кабинет</h1>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-    <script src="js/chessboard-1.0.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-    <script src="stockfish-19-lite-single.js"></script>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="script.js"></script>
+        <div class="cabinet-content">
+            <div id="avatar-box" class="player-avatar-placeholder" title="Нажми, чтобы сменить фото"></div>
+            <input type="file" id="avatar-input" accept="image/*" class="hidden">
+
+            <p class="player-name">Игрок</p>
+
+            <div class="cabinet-info">
+                <p>Рейтинг: <span id="stat-rating">0</span></p>
+                <p>Победы: <span id="stat-wins">0</span></p>
+                <p>Поражения: <span id="stat-losses">0</span></p>
+            </div>
+        </div>
+
+        <div class="cabinet-buttons">
+            <button id="btn-logout">Выйти из аккаунта</button>
+            <button id="btn-cabinet-back">Назад</button>
+        </div>
+    </div>
+
 
     <div id="link-modal" class="hidden" style="
     position: fixed; top:0; left:0; width:100%; height:100%;
@@ -52,7 +82,7 @@
         text-align:center; box-shadow: 0 0 30px rgba(0,0,0,0.5);">
             <h2 style="margin-bottom:15px; font-size:1.4rem;">Ссылка для друга</h2>
             <p style="margin-bottom:15px; font-size:0.95rem; color:#555;">
-                Отправь эту ссылку другу — он зайдёт за чёрных.
+                Отправь эту ссылку другу - он зайдёт за чёрных.
             </p>
             <input id="share-link" type="text" readonly style="
             width:100%; padding:12px; font-size:0.9rem; border:1px solid #ccc;
@@ -70,6 +100,12 @@
             </p>
         </div>
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="js/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="stockfish-19-lite-single.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="script.js"></script>
 </body>
 
 </html>

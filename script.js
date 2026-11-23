@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     let board = null;
+    const menuScreen = document.getElementById('main-menu');
     const game = new Chess();
 
     const moveHistory = document.getElementById('move-history');
@@ -14,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const audio = new Audio(audioPath);
         audio.play().catch(error => console.log("звук заблокирован", error));
     }
+
 
     // ========== STOCKFISH (режим с ботом) ==========
     try {
@@ -69,9 +71,13 @@ document.addEventListener('DOMContentLoaded', () => {
         moveHistory.scrollTop = moveHistory.scrollHeight;
     };
 
+    let authToken = localStorage.getItem('chess_token') || null;
+    let myLogin = localStorage.getItem('chess_login') || null;
+
     // ========== СОКЕТ ==========
     const BACKEND_URL = 'https://chess-server-nnkd.onrender.com';
     const socket = io(BACKEND_URL, { transports: ['websocket', 'polling'] });
+
 
     let currentRoomId = null;
     let isOnlineMode = false;
@@ -149,9 +155,206 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#board').on('touchmove', (e) => { if (isTouchingPiece) e.preventDefault(); });
     $('#board').on('touchend touchcancel', () => { isTouchingPiece = false; });
 
+
+    // ========== ВХОД ==========
+    const authScreen = document.getElementById('auth-screen');
+    const authError = document.getElementById('auth-error');
+
+    const authRequest = async (endpoint, login, password) => {
+        const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login, password })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        authToken = data.token;
+        myLogin = data.login;
+        localStorage.setItem('chess_token', authToken);
+        localStorage.setItem('chess_login', myLogin);
+    };
+
+
+    const showAuth = () => {
+        authScreen.classList.remove('hidden');
+        menuScreen.classList.add('hidden');
+        authError.textContent = '';
+        authError.style.color = 'red';
+    };
+    const showMenu = () => { authScreen.classList.add('hidden'); menuScreen.classList.remove('hidden'); };
+
+    authToken ? showMenu() : showAuth();
+
+    const authTitle = document.querySelector('#auth-screen h2');
+    const btnLogin = document.getElementById('btn-login');
+    const btnRegister = document.getElementById('btn-register');
+
+    const setAuthMode = (mode) => {
+        authTitle.textContent = mode === 'register' ? 'Регистрация' : 'Вход в Best Chess';
+        authError.textContent = '';
+    };
+
+    btnLogin.addEventListener('click', () => {
+        setAuthMode('login');
+        handleAuth('/api/login');
+    });
+
+    btnRegister.addEventListener('click', () => {
+        setAuthMode('register');
+        handleAuth('/api/register');
+    });
+
+    const handleAuth = async (endpoint) => {
+        const login = document.getElementById('auth-login').value.trim();
+        const password = document.getElementById('auth-password').value;
+
+        // Кнопки блокируем на время запроса
+        btnLogin.disabled = true;
+        btnRegister.disabled = true;
+        authError.textContent = 'Отправляю...';
+
+        try {
+            await authRequest(endpoint, login, password);
+            authError.textContent = 'Готово! Добро пожаловать.';
+            authError.style.color = '#2c7454';   // зелёный вместо красного
+            setTimeout(showMenu, 600);           // короткая пауза, чтобы сообщение успели увидеть
+        } catch (e) {
+            authError.textContent = e.message;
+            authError.style.color = 'red';
+        } finally {
+            btnLogin.disabled = false;
+            btnRegister.disabled = false;
+        }
+    };
+
+    document.getElementById('btn-guest').addEventListener('click', () => {
+        myLogin = null;
+        authToken = null;
+        showMenu();
+    });
     // ========== МЕНЮ ==========
-    const menuScreen = document.getElementById('main-menu');
     const gameScreen = document.getElementById('game-screen');
+
+    const cabinetScreen = document.getElementById('cabinet-screen');
+    const btnCabinet = document.getElementById('btn-cabinet');
+    const btnCabinetBack = document.getElementById('btn-cabinet-back');
+
+
+    if (btnCabinet) {
+        btnCabinet.addEventListener('click', async () => {
+            // Гость не проходит: показываем экран входа с пояснением
+            if (!authToken) {
+                showAuth();
+                authError.textContent = 'Личный кабинет доступен только зарегистрированным игрокам';
+                authError.style.color = '#b3261e';
+                return;
+            }
+
+            cabinetScreen.classList.remove('hidden');
+            menuScreen.classList.add('hidden');
+
+            const response = await fetch(`${BACKEND_URL}/api/profile`, {
+                headers: { 'Authorization': authToken }
+            });
+
+            // Токен протух (например, сервер перезапустился) — отправляем на вход
+            if (!response.ok) {
+                authToken = null;
+                localStorage.removeItem('chess_token');
+                localStorage.removeItem('chess_login');
+                showAuth();
+                return;
+            }
+            const data = await response.json();
+
+            cabinetScreen.querySelector('.player-name').textContent = data.login;
+
+            document.getElementById('stat-rating').textContent = data.rating;
+            document.getElementById('stat-wins').textContent = data.wins;
+            document.getElementById('stat-losses').textContent = data.losses;
+            if (data.avatar) {
+                avatarBox.style.background = `url(${data.avatar}) center/cover`;
+            }
+        });
+    }
+    if (btnCabinetBack) {
+        btnCabinetBack.addEventListener('click', () => {
+            cabinetScreen.classList.add('hidden');
+            menuScreen.classList.remove('hidden');
+        });
+    }
+    const btnLogout = document.getElementById('btn-logout');
+    if (btnLogout) {
+        btnLogout.addEventListener('click', () => {
+            authToken = null;
+            myLogin = null;
+            localStorage.removeItem('chess_token');
+            localStorage.removeItem('chess_login');
+
+            // Сбрасываем кабинет, чтобы следующему вошедшему не показались чужие данные
+            cabinetScreen.querySelector('.player-name').textContent = 'Игрок';
+            document.getElementById('stat-rating').textContent = '0';
+            document.getElementById('stat-wins').textContent = '0';
+            document.getElementById('stat-losses').textContent = '0';
+            avatarBox.style.background = '';
+
+            cabinetScreen.classList.add('hidden');
+            showAuth();
+        });
+    }
+
+    const avatarBox = document.getElementById('avatar-box');
+    const avatarInput = document.getElementById('avatar-input');
+
+    avatarBox.addEventListener('click', () => {
+        if (authToken) avatarInput.click();
+    });
+
+    avatarInput.addEventListener('change', () => {
+        const file = avatarInput.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                // Сжимаем в квадрат 256x256
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+
+                // Обрезаем по центру (crop)
+                const side = Math.min(img.width, img.height);
+                ctx.drawImage(img,
+                    (img.width - side) / 2, (img.height - side) / 2, side, side,
+                    0, 0, 256, 256);
+
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+                // Отправляем на сервер
+                fetch(`${BACKEND_URL}/api/avatar`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': authToken
+                    },
+                    body: JSON.stringify({ image: dataUrl })
+                }).then(() => {
+                    avatarBox.style.background = `url(${dataUrl}) center/cover`;
+                });
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+    document.getElementById('btn-guest').addEventListener('click', () => {
+        myLogin = null;
+        authToken = null;
+        localStorage.removeItem('chess_token');
+        localStorage.removeItem('chess_login');
+        showMenu();
+    });
 
     const startGame = () => {
         menuScreen.classList.add('hidden');
