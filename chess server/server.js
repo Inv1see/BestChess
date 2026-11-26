@@ -373,7 +373,7 @@ io.on('connection', (socket) => {
         const room = rooms[roomId];
         if (room && !room.finished) {
             room.fen = fen;
-            room.moveCount++;
+            if (!move || !move.stateOnly) room.moveCount++;
             socket.to(roomId).emit('opponentMove', { move, fen });
         }
     });

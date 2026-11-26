@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let doors = { w: null, b: null };
     let rebalanceState = null;
     let samuraiFlashSquares = [];
+    let samuraiFlashTimeout = null;
     let statusToastTimeout = null;
 
     // ========== СОСТОЯНИЕ ОНЛАЙН И РЕЙТИНГОВОЙ ИГРЫ ==========
@@ -79,6 +80,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const clampMana = (val) => Math.max(0, Math.min(MAX_MANA, val));
     const addMana = (color, amount) => { mana[color] = clampMana(mana[color] + amount); };
+
+    function setSamuraiFlashSquares(squares) {
+        samuraiFlashSquares = squares;
+        if (samuraiFlashTimeout !== null) clearTimeout(samuraiFlashTimeout);
+        samuraiFlashTimeout = null;
+        if (squares.length > 0) {
+            samuraiFlashTimeout = window.setTimeout(() => {
+                samuraiFlashSquares = [];
+                samuraiFlashTimeout = null;
+                updateAbilityUI();
+                renderBoardOverlays();
+            }, 900);
+        }
+    }
+
+    function clearLassoIfKnightGone() {
+        if (!lassoState) return;
+        const knight = game.get(lassoState.knightSquare);
+        if (!knight || knight.type !== 'n' || knight.color !== lassoState.ownerColor) {
+            lassoState = null;
+        }
+    }
 
     const getManaTier = (val) => {
         if (val <= 250) return 1;
@@ -558,6 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (doors[userColor]) parts.push(`Ваш щит: ${doors[userColor].turnsLeft} х.`);
             if (doors[oppColor]) parts.push(`Щит врага: ${doors[oppColor].turnsLeft} х.`);
             if (lassoState) parts.push(`Лассо на ${lassoState.knightSquare}`);
+            if (samuraiFlashSquares.length) parts.push(`Тень самурая: ${samuraiFlashSquares.join(', ')}`);
             fxEl.textContent = parts.join(' | ');
         }
 
@@ -1053,7 +1077,7 @@ document.addEventListener('DOMContentLoaded', () => {
         phantoms = { w: null, b: null };
         doors = { w: null, b: null };
         rebalanceState = null;
-        samuraiFlashSquares = [];
+        setSamuraiFlashSquares([]);
         updateAbilityUI();
         renderBoardOverlays();
     }
@@ -1069,7 +1093,8 @@ document.addEventListener('DOMContentLoaded', () => {
             lassoState,
             phantoms,
             doors,
-            rebalanceState
+            rebalanceState,
+            samuraiFlashSquares
         };
     }
 
@@ -1085,14 +1110,25 @@ document.addEventListener('DOMContentLoaded', () => {
         phantoms = state.phantoms || { w: null, b: null };
         doors = state.doors || { w: null, b: null };
         rebalanceState = state.rebalanceState || null;
+        setSamuraiFlashSquares(state.samuraiFlashSquares || []);
     }
 
     function syncAbilityStateOnline(extra = {}) {
         if (!isOnlineMode || !currentRoomId) return;
+
+        const state = serializeAbilityState();
+        if (['buffOnly', 'customMove', 'midRebalance', 'stateSync'].includes(extra.kind)) {
+            socket.emit('move', {
+                roomId: currentRoomId,
+                move: { stateOnly: true, abilityState: state },
+                fen: game.fen()
+            });
+        }
+
         socket.emit('abilitySync', {
             roomId: currentRoomId,
             fen: game.fen(),
-            state: serializeAbilityState(),
+            state,
             ...extra
         });
     }
@@ -1134,8 +1170,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     playChessSound(move.captured ? 'capture' : 'move');
                     board.position(game.fen());
-                    recordMove(move.san, moveCount);
-                    moveCount++;
+                    if (move && move.san) {
+                        recordMove(move.san, moveCount);
+                        moveCount++;
+                    }
                     updateAbilityUI();
                     renderBoardOverlays();
                     checkGameOver();
@@ -1255,6 +1293,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const newFen = parts.join(' ');
         if (!game.load(newFen)) return false;
+        clearLassoIfKnightGone();
 
         if (capturedPiece) {
             checkTimeJumpQueenCaptured(origOwner);
@@ -1361,6 +1400,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const move = game.move({ from: source, to: target, promotion: 'q' });
         if (move === null) return 'snapback';
+        clearLassoIfKnightGone();
 
         const opp = getOpponentColor(userColor);
         let extraCapturedType = null;
@@ -1421,8 +1461,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     }
                 }
-                samuraiFlashSquares = [shadowTarget];
-                setTimeout(() => { samuraiFlashSquares = []; renderBoardOverlays(); }, 900);
+                setSamuraiFlashSquares([shadowTarget]);
 
                 if (pathClear) {
                     const victim = game.get(shadowTarget);
@@ -1432,6 +1471,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (game.load(temp.fen())) {
                             extraCapturedType = victim.type;
                             samuraiKilledSq = shadowTarget;
+                            clearLassoIfKnightGone();
                             checkTimeJumpQueenCaptured(opp);
                             showToast(`Samurai: тень уничтожила фигуру на ${shadowTarget}!`);
                         }
@@ -1474,7 +1514,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isOnlineMode && currentRoomId && !samuraiKilledSq) {
             socket.emit('move', {
                 roomId: currentRoomId,
-                move: move,
+                move: { ...move, abilityState: serializeAbilityState() },
                 fen: game.fen()
             });
             finishPlayerTurn(userColor, { kind: 'stateSync' });
@@ -1574,6 +1614,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.querySelector('.flip-board').addEventListener('click', () => {
+        if (isOnlineMode && !isRankedMatch) return;
         board.flip();
         if (!isOnlineMode) {
             userColor = userColor === 'w' ? 'b' : 'w';
@@ -1786,6 +1827,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const startGame = () => {
         menuScreen.classList.add('hidden');
         gameScreen.classList.remove('hidden');
+        const flipBoardButton = document.querySelector('.flip-board');
+        if (flipBoardButton) {
+            flipBoardButton.style.display = (isOnlineMode && !isRankedMatch) ? 'none' : '';
+        }
         setWideGameLayout(true);
         setTimeout(() => {
             board.resize();
@@ -1923,32 +1968,48 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('opponentMove', ({ move, fen }) => {
-        game.move(move);
-        board.position(fen);
-        recordMove(move.san, moveCount);
-        moveCount++;
+        if (fen) {
+            if (game.fen() !== fen) {
+                game.load(fen);
+                board.position(fen);
+            }
+        } else if (move && !move.stateOnly) {
+            game.move(move);
+        }
+        if (move && move.abilityState) {
+            applySerializedAbilityState(move.abilityState);
+        }
+        clearLassoIfKnightGone();
+        if (move && move.san) {
+            recordMove(move.san, moveCount);
+            moveCount++;
+        }
         checkGameOver();
-        playChessSound(move.captured ? 'capture' : 'move');
+        if (!move || !move.stateOnly) {
+            playChessSound(move && move.captured ? 'capture' : 'move');
+        }
+        updateAbilityUI();
+        renderBoardOverlays();
     });
 
     socket.on('abilitySync', (data) => {
         if (!data) return;
         applySerializedAbilityState(data.state);
 
+        if (data.fen) {
+            if (game.fen() !== data.fen) game.load(data.fen);
+            board.position(data.fen);
+        }
+        clearLassoIfKnightGone();
+
         if (data.kind === 'customMove' || data.kind === 'midRebalance') {
-            if (data.fen) {
-                game.load(data.fen);
-                board.position(data.fen);
-            }
             if (data.san) {
                 recordMove(data.san, moveCount);
                 moveCount++;
             }
             playChessSound(data.sound || 'move');
             checkGameOver();
-        } else if (data.kind === 'stateSync' && data.fen && data.fen !== game.fen()) {
-            game.load(data.fen);
-            board.position(data.fen);
+        } else if (data.kind === 'stateSync') {
             checkGameOver();
         }
 
