@@ -982,6 +982,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return { ok: false, reason: '«Close the door»: щит ладьи блокирует атаку на короля!' };
         }
         if (lassoState && lassoState.trappedColor === movingColor && lassoState.trappedSquares.includes(moveObj.from)) {
+            if (moveObj.to === lassoState.knightSquare) {
+                return { ok: false, reason: 'Пойманная фигура не может съесть коня ;)' };
+            }
             const kC = sqToCoords(lassoState.knightSquare);
             const tC = sqToCoords(moveObj.to);
             if (Math.max(Math.abs(kC.f - tC.f), Math.abs(kC.r - tC.r)) > 1) {
