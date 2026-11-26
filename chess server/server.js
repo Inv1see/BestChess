@@ -433,7 +433,7 @@ io.on('connection', (socket) => {
                             ratingChanges
                         });
                     } else {
-                        // отмена рейтинговой игры, если никто не сделал ходов
+                        // На Chess.com выход до первого хода отменяет партию без потери рейтинга
                         socket.to(roomId).emit('gameEnded', {
                             reason: 'abort',
                             winnerColor: null,
