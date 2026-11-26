@@ -454,7 +454,23 @@ document.addEventListener('DOMContentLoaded', () => {
         resignBtn.addEventListener('click', () => {
             if (!isOnlineMode || !currentRoomId || onlineGameEnded) return;
             if (confirm('Вы уверены, что хотите сдаться?')) {
-                socket.emit('resign', { roomId: currentRoomId });
+                if (!socket.connected) {
+                    showToast('Нет соединения с сервером. Сдача не отправлена.');
+                    return;
+                }
+
+                resignBtn.disabled = true;
+                resignBtn.textContent = 'Отправляем...';
+                socket.timeout(5000).emit('resign', { roomId: currentRoomId }, (error, response) => {
+                    if (!error && response && response.ok) return;
+                    if (onlineGameEnded) return;
+
+                    resignBtn.disabled = false;
+                    resignBtn.textContent = 'Сдаться';
+                    showToast(error
+                        ? 'Сервер не подтвердил сдачу. Попробуйте ещё раз.'
+                        : 'Сдача не принята сервером. Игра продолжится.');
+                });
             }
         });
         sidebar.appendChild(resignBtn);
@@ -1938,6 +1954,11 @@ document.addEventListener('DOMContentLoaded', () => {
         gameEndReported = false;
         onlineGameEnded = false;
         userColor = color;
+        const resignBtn = document.getElementById('btn-resign-online');
+        if (resignBtn) {
+            resignBtn.disabled = false;
+            resignBtn.textContent = 'Сдаться';
+        }
 
         const rankedModal = document.getElementById('ranked-search-modal');
         if (rankedModal) rankedModal.style.display = 'none';

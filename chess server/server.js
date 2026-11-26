@@ -402,16 +402,35 @@ io.on('connection', (socket) => {
     });
 
     // Сдача
-    socket.on('resign', ({ roomId }) => {
-        const room = rooms[roomId];
-        if (!room || room.finished) return;
+    socket.on('resign', (data, acknowledge) => {
+        const respond = (response) => {
+            if (typeof acknowledge === 'function') acknowledge(response);
+        };
+        const room = data && data.roomId && rooms[data.roomId];
+        if (!room) {
+            respond({ ok: false, error: 'room_not_found' });
+            return;
+        }
+        if (room.finished) {
+            respond({ ok: false, error: 'game_already_finished' });
+            return;
+        }
+        if (!room.players.includes(socket.id)) {
+            respond({ ok: false, error: 'not_a_player' });
+            return;
+        }
+
         const myColor = room.socketColors?.[socket.id];
-        if (!myColor) return;
+        if (!myColor) {
+            respond({ ok: false, error: 'player_color_not_assigned' });
+            return;
+        }
 
         const winnerColor = myColor === 'w' ? 'b' : 'w';
         room.finished = true;
         const ratingChanges = room.isRanked ? applyRankedMatchResult(room, winnerColor) : null;
-        io.to(roomId).emit('gameEnded', { reason: 'resign', winnerColor, ratingChanges });
+        io.to(data.roomId).emit('gameEnded', { reason: 'resign', winnerColor, ratingChanges });
+        respond({ ok: true });
     });
 
     // Отключение
