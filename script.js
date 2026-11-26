@@ -64,6 +64,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let samuraiFlashSquares = [];
     let statusToastTimeout = null;
 
+    // ========== СОСТОЯНИЕ ОНЛАЙН И РЕЙТИНГОВОЙ ИГРЫ ==========
+    let currentRoomId = null;
+    let isOnlineMode = false;
+    let isRankedMatch = false;
+    let matchPlayers = null;
+    let gameEndReported = false;
+    let onlineGameEnded = false;
+
     const sqToCoords = (sq) => ({ f: FILES.indexOf(sq[0]), r: parseInt(sq[1], 10) - 1 });
     const coordsToSq = (f, r) => (f >= 0 && f < 8 && r >= 0 && r < 8) ? `${FILES[f]}${r + 1}` : null;
     const isPhantomSquare = (sq) => (phantoms.w && phantoms.w.square === sq) || (phantoms.b && phantoms.b.square === sq);
@@ -415,6 +423,19 @@ document.addEventListener('DOMContentLoaded', () => {
             sidebar.appendChild(btn);
         });
 
+        const resignBtn = document.createElement('button');
+        resignBtn.type = 'button';
+        resignBtn.id = 'btn-resign-online';
+        resignBtn.textContent = 'Сдаться';
+        resignBtn.style.cssText = 'display:none;margin-top:4px;padding:7px 12px;border:1px solid #ef4444;border-radius:6px;background:#fef2f2;color:#b91c1c;font-weight:700;cursor:pointer;';
+        resignBtn.addEventListener('click', () => {
+            if (!isOnlineMode || !currentRoomId || onlineGameEnded) return;
+            if (confirm('Вы уверены, что хотите сдаться?')) {
+                socket.emit('resign', { roomId: currentRoomId });
+            }
+        });
+        sidebar.appendChild(resignBtn);
+
         boardParent.insertBefore(arena, boardEl);
         boardCol.appendChild(oppBar);
         boardCol.appendChild(boardEl);
@@ -433,6 +454,25 @@ document.addEventListener('DOMContentLoaded', () => {
             updateAbilityUI();
             renderBoardOverlays();
         });
+
+        if (!document.getElementById('ranked-search-modal')) {
+            const rankedModal = document.createElement('div');
+            rankedModal.id = 'ranked-search-modal';
+            rankedModal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;z-index:9999;display:none;';
+            rankedModal.innerHTML = `
+                <div style="background:#fff;color:#111827;padding:24px 28px;border-radius:12px;max-width:340px;width:90%;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.25);">
+                    <h3 style="margin:0 0 8px;">Поиск рейтинговой игры</h3>
+                    <p id="ranked-search-info" style="margin:0 0 16px;font-size:14px;color:#4b5563;">Подбираем соперника по вашему рейтингу...</p>
+                    <button type="button" id="cancel-ranked-btn" style="padding:8px 18px;border:none;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;font-weight:600;">Отмена</button>
+                </div>
+            `;
+            document.body.appendChild(rankedModal);
+
+            document.getElementById('cancel-ranked-btn').addEventListener('click', () => {
+                socket.emit('cancelRanked');
+                rankedModal.style.display = 'none';
+            });
+        }
     }
 
     function showToast(msg) {
@@ -497,7 +537,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (oppGlow && oppTierText && oppLabel) {
             oppGlow.className = `opponent-avatar tier-${tier}`;
             oppTierText.textContent = `Уровень маны: ${tierRanges[tier]}`;
-            oppLabel.textContent = isOnlineMode ? 'Соперник (Онлайн)' : 'Бот (Stockfish)';
+            if (isRankedMatch && matchPlayers && matchPlayers[oppColor]) {
+                const oppInfo = matchPlayers[oppColor];
+                oppLabel.textContent = `${oppInfo.login} (${oppInfo.rating})`;
+            } else {
+                oppLabel.textContent = isOnlineMode ? 'Соперник (Онлайн)' : 'Бот (Stockfish)';
+            }
+        }
+
+        const resignBtn = document.getElementById('btn-resign-online');
+        if (resignBtn) {
+            resignBtn.style.display = (isOnlineMode && !onlineGameEnded) ? 'block' : 'none';
         }
 
         const fxEl = document.getElementById('active-effects-text');
@@ -511,7 +561,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fxEl.textContent = parts.join(' | ');
         }
 
-        const isMyTurn = !game.game_over() && game.turn() === userColor;
+        const isMyTurn = !game.game_over() && !onlineGameEnded && game.turn() === userColor;
         const myCooldowns = cooldowns[userColor];
         ABILITIES.forEach(ab => {
             const btn = document.getElementById(`ab-btn-${ab.id}`);
@@ -712,7 +762,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleAbilityButtonClick(abId) {
-        if (game.game_over() || game.turn() !== userColor) return;
+        if (game.game_over() || onlineGameEnded || game.turn() !== userColor) return;
         const ab = ABILITIES.find(a => a.id === abId);
         if (!ab || mana[userColor] < ab.cost || cooldowns[userColor][abId] > 0) return;
 
@@ -1109,6 +1159,23 @@ document.addEventListener('DOMContentLoaded', () => {
         hoveredAbilityId = null;
         rebalanceState = null;
         updateAbilityUI();
+
+        if (isOnlineMode && currentRoomId) {
+            if (!gameEndReported) {
+                gameEndReported = true;
+                let reason = 'draw';
+                let winnerColor = null;
+                if (game.in_checkmate()) {
+                    reason = 'checkmate';
+                    winnerColor = game.turn() === 'w' ? 'b' : 'w';
+                } else if (game.in_stalemate()) {
+                    reason = 'stalemate';
+                }
+                socket.emit('gameOver', { roomId: currentRoomId, reason, winnerColor });
+            }
+            return;
+        }
+
         setTimeout(() => {
             if (game.in_checkmate()) {
                 alert(game.turn() === 'w'
@@ -1135,8 +1202,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const BACKEND_URL = 'https://chess-server-nnkd.onrender.com';
     const socket = io(BACKEND_URL, { transports: ['websocket', 'polling'] });
 
-    let currentRoomId = null;
-    let isOnlineMode = false;
+    socket.on('connect', () => {
+        if (authToken) socket.emit('authenticate', authToken);
+    });
 
     function finishPlayerTurn(moverColor, extraSync = {}) {
         hoveredAbilityId = null;
@@ -1246,7 +1314,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== ОБРАБОТЧИКИ ДОСКИ ==========
     const onDragStart = (source, piece) => {
-        if (game.game_over()) return false;
+        if (game.game_over() || onlineGameEnded) return false;
         if (armedAbility === 'timeJumpSelect' || armedAbility === 'rebalanceSelect') return false;
 
         if (rebalanceState && rebalanceState.controller === userColor && rebalanceState.phase === 'needCharmedMove') {
@@ -1440,7 +1508,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderBoardOverlays();
 
     $('#board').on('click', '.square-55d63', function () {
-        if (game.game_over() || game.turn() !== userColor) return;
+        if (game.game_over() || onlineGameEnded || game.turn() !== userColor) return;
         const sqMatch = this.className.match(/square-([a-h][1-8])/);
         if (!sqMatch) return;
         const sq = sqMatch[1];
@@ -1542,6 +1610,7 @@ document.addEventListener('DOMContentLoaded', () => {
         myLogin = data.login;
         localStorage.setItem('chess_token', authToken);
         localStorage.setItem('chess_login', myLogin);
+        socket.emit('authenticate', authToken);
     };
 
     const showAuth = () => {
@@ -1598,6 +1667,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-guest').addEventListener('click', () => {
         myLogin = null;
         authToken = null;
+        localStorage.removeItem('chess_token');
+        localStorage.removeItem('chess_login');
+        socket.emit('authenticate', null);
         showMenu();
     });
 
@@ -1607,6 +1679,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const cabinetScreen = document.getElementById('cabinet-screen');
     const btnCabinet = document.getElementById('btn-cabinet');
     const btnCabinetBack = document.getElementById('btn-cabinet-back');
+    const avatarBox = document.getElementById('avatar-box');
+    const avatarInput = document.getElementById('avatar-input');
 
     if (btnCabinet) {
         btnCabinet.addEventListener('click', async () => {
@@ -1628,6 +1702,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 authToken = null;
                 localStorage.removeItem('chess_token');
                 localStorage.removeItem('chess_login');
+                socket.emit('authenticate', null);
                 showAuth();
                 return;
             }
@@ -1655,6 +1730,7 @@ document.addEventListener('DOMContentLoaded', () => {
             myLogin = null;
             localStorage.removeItem('chess_token');
             localStorage.removeItem('chess_login');
+            socket.emit('authenticate', null);
 
             cabinetScreen.querySelector('.player-name').textContent = 'Игрок';
             document.getElementById('stat-rating').textContent = '0';
@@ -1666,9 +1742,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showAuth();
         });
     }
-
-    const avatarBox = document.getElementById('avatar-box');
-    const avatarInput = document.getElementById('avatar-input');
 
     avatarBox.addEventListener('click', () => {
         if (authToken) avatarInput.click();
@@ -1709,13 +1782,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsDataURL(file);
     });
-    document.getElementById('btn-guest').addEventListener('click', () => {
-        myLogin = null;
-        authToken = null;
-        localStorage.removeItem('chess_token');
-        localStorage.removeItem('chess_login');
-        showMenu();
-    });
 
     const startGame = () => {
         menuScreen.classList.add('hidden');
@@ -1729,7 +1795,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('btn-bot').addEventListener('click', () => {
         isOnlineMode = false;
+        isRankedMatch = false;
+        matchPlayers = null;
         currentRoomId = null;
+        gameEndReported = false;
+        onlineGameEnded = false;
         startGame();
         game.reset();
         board.start();
@@ -1742,12 +1812,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('btn-online').addEventListener('click', () => {
         console.log('Быстрый: открываю модалку');
+        isRankedMatch = false;
+        matchPlayers = null;
+        gameEndReported = false;
+        onlineGameEnded = false;
         document.getElementById('share-link').value = 'Создаём игру...';
         document.getElementById('link-modal').classList.remove('hidden');
         socket.emit('createRoom');
     });
 
-    document.getElementById('btn-ranked').addEventListener('click', () => alert("Скоро!"));
+    document.getElementById('btn-ranked').addEventListener('click', () => {
+        if (!authToken) {
+            alert('Для рейтинговой игры нужно войти в аккаунт!');
+            return;
+        }
+        socket.emit('authenticate', authToken);
+        socket.emit('findRanked');
+    });
 
     // ========== ОНЛАЙН-СОБЫТИЯ ==========
     socket.on('roomCreated', (roomId) => {
@@ -1791,10 +1872,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1500);
     });
 
-    socket.on('gameStarted', ({ color, fen }) => {
+    socket.on('rankedSearching', ({ rating }) => {
+        const modal = document.getElementById('ranked-search-modal');
+        const info = document.getElementById('ranked-search-info');
+        if (info) info.textContent = `Ваш рейтинг: ${rating}. Ищем соперника...`;
+        if (modal) modal.style.display = 'flex';
+    });
+
+    socket.on('rankedError', (msg) => {
+        const modal = document.getElementById('ranked-search-modal');
+        if (modal) modal.style.display = 'none';
+        alert(msg);
+    });
+
+    socket.on('gameStarted', ({ color, fen, roomId, isRanked, players }) => {
         if (roomId) currentRoomId = roomId;
         isOnlineMode = true;
+        isRankedMatch = !!isRanked;
+        matchPlayers = players || null;
+        gameEndReported = false;
+        onlineGameEnded = false;
         userColor = color;
+
+        const rankedModal = document.getElementById('ranked-search-modal');
+        if (rankedModal) rankedModal.style.display = 'none';
+
         startGame();
         if (fen && fen !== 'start') {
             game.load(fen);
@@ -1812,6 +1914,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('errorMsg', (msg) => {
+        const rankedModal = document.getElementById('ranked-search-modal');
+        if (rankedModal) rankedModal.style.display = 'none';
         alert(msg);
         setWideGameLayout(false);
         document.getElementById('game-screen').classList.add('hidden');
@@ -1852,10 +1956,44 @@ document.addEventListener('DOMContentLoaded', () => {
         renderBoardOverlays();
     });
 
+    socket.on('gameEnded', ({ reason, winnerColor, ratingChanges }) => {
+        onlineGameEnded = true;
+        armedAbility = null;
+        hoveredAbilityId = null;
+        rebalanceState = null;
+        updateAbilityUI();
+
+        let title = 'Ничья!';
+        if (reason === 'abort') {
+            title = 'Партия отменена (соперник вышел до первого хода). Рейтинг не изменился.';
+        } else if (winnerColor) {
+            const iWon = winnerColor === userColor;
+            const reasonMap = {
+                checkmate: 'Шах и мат!',
+                resign: iWon ? 'Соперник сдался!' : 'Вы сдались.',
+                abandon: iWon ? 'Соперник покинул игру!' : 'Вы покинули игру.'
+            };
+            title = `${reasonMap[reason] || 'Игра окончена!'} ${iWon ? 'Вы победили!' : 'Вы проиграли.'}`;
+        } else if (reason === 'stalemate') {
+            title = 'Пат! Ничья.';
+        }
+
+        if (ratingChanges && ratingChanges[userColor]) {
+            const rc = ratingChanges[userColor];
+            const sign = rc.delta >= 0 ? '+' : '';
+            title += `\n\nВаш рейтинг: ${rc.oldRating} → ${rc.newRating} (${sign}${rc.delta})`;
+        }
+
+        setTimeout(() => alert(title), 150);
+    });
+
     socket.on('opponentLeft', () => {
         alert('Соперник покинул игру.');
         isOnlineMode = false;
+        isRankedMatch = false;
+        matchPlayers = null;
         currentRoomId = null;
+        onlineGameEnded = false;
         setWideGameLayout(false);
         document.getElementById('game-screen').classList.add('hidden');
         document.getElementById('main-menu').classList.remove('hidden');
