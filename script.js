@@ -1792,6 +1792,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('gameStarted', ({ color, fen }) => {
+        if (roomId) currentRoomId = roomId;
         isOnlineMode = true;
         userColor = color;
         startGame();

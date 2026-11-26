@@ -123,8 +123,9 @@ io.on('connection', (socket) => {
         const joinerColor = creatorColor === 'w' ? 'b' : 'w';
 
         // Обоим игрокам — их цвет и текущая позиция
-        socket.emit('gameStarted', { color: joinerColor, fen: room.fen });
-        io.to(room.players[0]).emit('gameStarted', { color: creatorColor, fen: room.fen });
+        socket.emit('gameStarted', { color: joinerColor, fen: room.fen, roomId });
+        io.to(room.players[0]).emit('gameStarted', { color: creatorColor, fen: room.fen, roomId });
+
 
         console.log(`Игрок ${socket.id} зашёл в комнату ${roomId}. Создатель: ${creatorColor === 'w' ? 'белые' : 'черные'}`);
     });
@@ -139,11 +140,13 @@ io.on('connection', (socket) => {
 
     // Синхронизация маны и способностей
     socket.on('abilitySync', (data) => {
+        console.log('abilitySync от', socket.id, 'комната:', data?.roomId, 'тип:', data?.kind);
         if (data && data.roomId && rooms[data.roomId]) {
             if (data.fen) rooms[data.roomId].fen = data.fen;
             socket.to(data.roomId).emit('abilitySync', data);
         }
     });
+
 
     // Отключение
     socket.on('disconnect', () => {
